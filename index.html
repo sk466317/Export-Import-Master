@@ -511,12 +511,12 @@
             </datalist>
 
             <label for="location">Location:</label>
-            <select id="location" name="location" required>
-                <option value="" disabled selected>Select Location</option>
-                <option value="Trident Dhaula">Trident Dhaula</option>
-                <option value="Trident Sanghera">Trident Sanghera</option>
-                <option value="Target Store">Target Store</option>
-                <option value="Trident Lotus">Trident Lotus</option>
+            <select id="location" name="location" required style="text-transform: uppercase;">
+                <option value="" disabled selected>SELECT LOCATION</option>
+                <option value="TRIDENT DHAULA">TRIDENT DHAULA</option>
+                <option value="TRIDENT SANGHERA">TRIDENT SANGHERA</option>
+                <option value="TARGET STORE">TARGET STORE</option>
+                <option value="TRIDENT LOTUS">TRIDENT LOTUS</option>
             </select>
         </form>
         
@@ -543,6 +543,8 @@
                     <!-- UPDATED: Reordered Columns -->
                     <th>Select</th>
                     <th>Mail</th>
+                    <!-- UPDATED: Added Entry Date Column -->
+                    <th>Entry Date</th>
                     <th>Location</th>
                     <th>Booking No</th>
                     <th>Stuffing Date</th>
@@ -799,8 +801,12 @@
             }
 
             // Target Fields
-            const targetDate = record.stuffingDate !== 'Not Confirm' ? record.stuffingDate : getTodayDate();
+            // Use the RECORD's Entry Date (which is properly set to Today in saveInvoiceData)
+            const targetEntryDate = record.entryDate; 
             const targetCustomer = record.location;
+            
+            // Note: Stuffing date from form
+            const formStuffingDate = record.stuffingDate !== 'Not Confirm' ? record.stuffingDate : "";
             
             // New Remark Fragment: "Line [Size]" (e.g. "MSC LINE 1x20")
             const newRemarkFragment = `${record.shippingLine} ${record.containers}`;
@@ -810,16 +816,26 @@
                     .collection('sales_records');
 
             try {
-                // Check for existing record
+                // DUPLICATE CHECK LOGIC:
+                // Check if there is ALREADY an entry made TODAY (targetEntryDate) for this CUSTOMER
+                
                 const querySnapshot = await collectionRef
                     .where('customerName', '==', targetCustomer)
-                    .where('entryDate', '==', targetDate) // entryDate matches stuffingDate per previous logic
+                    .where('entryDate', '==', targetEntryDate) 
                     .get();
 
-                if (!querySnapshot.empty) {
-                    // UPDATE EXISTING RECORD (MERGE)
-                    const doc = querySnapshot.docs[0];
+                // Find a doc that matches the STUFFING DATE too
+                let matchingDoc = null;
+                querySnapshot.forEach(doc => {
                     const data = doc.data();
+                    if (data.stuffingDate === formStuffingDate) {
+                        matchingDoc = doc;
+                    }
+                });
+
+                if (matchingDoc) {
+                    // UPDATE EXISTING RECORD (MERGE)
+                    const data = matchingDoc.data();
 
                     const existing20 = parseInt(data.container20) || 0;
                     const existing40 = parseInt(data.container40) || 0;
@@ -837,7 +853,7 @@
                         newRemarks = `Line: ${newRemarkFragment}`;
                     }
 
-                    await doc.ref.update({
+                    await matchingDoc.ref.update({
                         container20: newTotal20.toString(),
                         container40: newTotal40.toString(),
                         remarks: newRemarks,
@@ -854,11 +870,11 @@
                         container20: c20.toString(),
                         container40: c40.toString(),
                         containerDbl20: "0",
-                        stuffingDate: record.stuffingDate !== 'Not Confirm' ? record.stuffingDate : "",
-                        priority: "Normal",
+                        stuffingDate: formStuffingDate,
+                        priority: "High", // Changed from "Normal" to "High" as requested
                         // New Format for New Entry: just "Line: ..."
                         remarks: `Line: ${newRemarkFragment}`, 
-                        entryDate: targetDate,
+                        entryDate: targetEntryDate, // Use the captured entry date (YYYY-MM-DD)
                         timestamp: firebase.firestore.FieldValue.serverTimestamp()
                     };
                     await collectionRef.add(payload);
@@ -873,35 +889,40 @@
         async function saveInvoiceData(formData) {
             const records = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
             
-            const todayISO = getTodayDate();
+            const todayISO = getTodayDate(); // YYYY-MM-DD
             
             // Logic to handle missing Stuffing Date
             const finalStuffingDate = formData.stuffingDate ? formData.stuffingDate : "Not Confirm";
 
-            // Preserve existing mail status if record exists
+            // Preserve existing mail status & entry date if record exists
             let currentMailStatus = 'No';
+            // Default Entry Date to TODAY for new records
+            let currentEntryDate = todayISO;
+
             const existingRecord = records.find(r => r.bookingNo === formData.bookingNo);
-            if (existingRecord && existingRecord.mailStatus) {
-                currentMailStatus = existingRecord.mailStatus;
+            if (existingRecord) {
+                if (existingRecord.mailStatus) currentMailStatus = existingRecord.mailStatus;
+                if (existingRecord.entryDate) currentEntryDate = existingRecord.entryDate;
             }
 
             const newData = {
-                saveDate: todayISO, 
+                saveDate: todayISO, // This is just for "Last Saved" info
                 bookingNo: formData.bookingNo,
                 invoiceDate: formData.invoiceDate,
                 containers: formData.otherReference,
                 shippingLine: formData.buyer,
                 finalDestination: formData.finalDestination,
-                location: formData.location,
+                location: formData.location, // Already uppercase from input
                 invoiceNo: formData.invoiceNo,
                 initialCarriage: formData.initialCarriage,
                 portOfDischarge: formData.portOfDischarge,
                 countryOfOrigin: formData.countryOfOrigin,
                 packages: formData.packages,
                 cartonNos: formData.cartonNos,
-                stuffingDate: finalStuffingDate, // Updated logic
+                stuffingDate: finalStuffingDate, 
                 grossWeight: formData.grossWeight,
-                mailStatus: currentMailStatus // Default to No or preserve existing
+                mailStatus: currentMailStatus,
+                entryDate: currentEntryDate // CAPTURED ENTRY DATE
             };
 
             const existingIndex = records.findIndex(r => r.bookingNo === newData.bookingNo);
@@ -928,15 +949,16 @@
             }
 
             // Updated Header
-            const headers = ["Save Date", "Booking No", "Stuffing Date", "Containers x20/x40", "Shipping Line", "Country of Final Destination", "Location", "Mail Sent"];
+            const headers = ["Entry Date", "Booking No", "Stuffing Date", "Containers x20/x40", "Shipping Line", "Country of Final Destination", "Location", "Mail Sent"];
             
             let csvContent = headers.join(",") + "\n";
             
             records.forEach(record => {
                 const formattedStuffingDate = formatDate(record.stuffingDate || 'Not Confirm');
+                const formattedEntryDate = formatDate(record.entryDate); // Format entry date
                 
                 const row = [
-                    formatDate(record.saveDate), 
+                    formattedEntryDate,
                     record.bookingNo,
                     formattedStuffingDate,
                     record.containers,
@@ -982,28 +1004,31 @@
                 checkbox.value = record.bookingNo; // Use Booking No as ID
                 selectCell.appendChild(checkbox);
 
-                // 1. Mail Status (Moved here - Second)
+                // 1. Mail Status (Second)
                 const mailCell = row.insertCell();
                 mailCell.classList.add('mail-cell');
                 mailCell.textContent = record.mailStatus === 'Sent' ? 'Sent ✅' : '-';
 
-                // 2. Location (Third)
+                // 2. Entry Date (Third - NEW)
+                row.insertCell().textContent = formatDate(record.entryDate);
+
+                // 3. Location (Fourth)
                 row.insertCell().textContent = record.location;
                 
-                // 3. Booking No
+                // 4. Booking No
                 row.insertCell().textContent = record.bookingNo;
                 
-                // 4. Stuffing Date
+                // 5. Stuffing Date
                 const sDate = record.stuffingDate || 'Not Confirm';
                 row.insertCell().textContent = formatDate(sDate);
                 
-                // 5. Containers
+                // 6. Containers
                 row.insertCell().textContent = record.containers;
                 
-                // 6. Shipping Line
+                // 7. Shipping Line
                 row.insertCell().textContent = record.shippingLine;
                 
-                // 7. Country of Final Destination
+                // 8. Country of Final Destination
                 row.insertCell().textContent = record.finalDestination;
 
                 // Action Cell (Last)
@@ -1047,6 +1072,8 @@
             }
             
             document.getElementById('finalDestination').value = record.finalDestination || '';
+            
+            // Reset location selection
             document.getElementById('location').value = record.location || '';
             
             alert(`Data for Booking No. ${record.bookingNo} loaded into the form for editing/resending.`);
@@ -1061,68 +1088,7 @@
             document.getElementById('packages').value = 500; 
             populateDatalist(); 
             loadAllData(); 
-            
-            // --- NEW: LISTENER FOR NOTIFICATION ---
-            if (db) {
-                const planningRef = db.collection('artifacts').doc(appId)
-                        .collection('public').doc('data')
-                        .collection('sales_records');
-
-                let isInitialLoad = true;
-
-                // Listen for added or modified docs
-                planningRef.orderBy('timestamp', 'desc').limit(1).onSnapshot(snapshot => {
-                    if (isInitialLoad) {
-                        isInitialLoad = false;
-                        return;
-                    }
-                    
-                    snapshot.docChanges().forEach(change => {
-                        // Trigger on Add or Modify (Merge)
-                        if (change.type === 'added' || change.type === 'modified') {
-                            const data = change.doc.data();
-                            showNotification(data);
-                        }
-                    });
-                }, error => {
-                    console.warn("Notification listener error (likely index missing, which is fine):", error);
-                });
-            }
         });
-
-        // --- NEW: POPUP FUNCTIONS ---
-        function showNotification(data) {
-            // Parse Details
-            let size = "";
-            if(parseInt(data.container20) > 0) size = `${data.container20}x20`;
-            if(parseInt(data.container40) > 0) size += (size ? ", " : "") + `${data.container40}x40`;
-            if(parseInt(data.containerDbl20) > 0) size += (size ? ", " : "") + `${data.containerDbl20}xDbl20`;
-            
-            // Extract Line from Remarks
-            let line = "Line ?";
-            if(data.remarks) {
-                // If merged, might be "Line: MSC 1x20, CMA 1x40"
-                // Just show the whole remark or truncate
-                line = data.remarks.length > 30 ? data.remarks.substring(0, 30) + "..." : data.remarks;
-            }
-
-            // Format Date
-            let sDate = data.stuffingDate;
-            if(sDate && sDate.includes('-')) {
-                const [y, m, d] = sDate.split('-');
-                sDate = `${d}-${m}-${y}`;
-            }
-
-            const msg = `New Planning: ${size} - ${data.customerName}<br><br>Details: ${line}<br>Stuffing Date: ${sDate}`;
-            
-            const popup = document.getElementById('notificationPopup');
-            document.getElementById('popupMessage').innerHTML = msg; // Use innerHTML for <br>
-            popup.style.display = 'block';
-        }
-
-        function closePopup() {
-            document.getElementById('notificationPopup').style.display = 'none';
-        }
 
         // --- NEW: Function to Reset Form ---
         function resetInvoiceForm() {
@@ -1164,9 +1130,14 @@
             const allInputs = document.querySelectorAll('#invoiceForm input, #invoiceForm select');
             allInputs.forEach(input => {
                 if (input.name) {
+                    // Ensure uppercase for specific fields if needed, location is already handled by options
+                    // but manual entry might not be.
                     formData[input.name] = input.value.trim();
                 }
             });
+
+            // Force location to uppercase
+            if(formData.location) formData.location = formData.location.toUpperCase();
 
             const requiredFields = document.querySelectorAll('#invoiceForm [required]');
             requiredFields.forEach(field => {
@@ -1188,8 +1159,20 @@
                 return; 
             }
             
-            // --- ALERT BEFORE ACTION ---
-            alert(`Container : ${formData.otherReference}\nLine : ${formData.buyer}`);
+            // --- ALERT BEFORE ACTION (CONFIRMATION) ---
+            const sDate = formData.stuffingDate ? formatDate(formData.stuffingDate) : "Not Confirm";
+            
+            const confirmMsg = 
+                `Popup Notification\n` +
+                `Location: ${formData.location}\n` +
+                `Shipping Line: ${formData.buyer}\n` +
+                `Container: ${formData.otherReference}\n` +
+                `Stuffing Date: ${sDate}\n\n` +
+                `Save Data? (OK = Yes, Cancel = No)`;
+
+            if (!confirm(confirmMsg)) {
+                return; // Stop if user cancels
+            }
 
             // --- FOR PDF/WHATSAPP: Save Data & Generate Invoice ---
             saveInvoiceData(formData); 
@@ -1334,15 +1317,16 @@ survey the containers urgently.`;
             const headerRow = clonedTable.querySelector('thead tr');
             
             // Adjust removal based on new order:
-            // 0: Select, 1: Mail, 2: Loc, 3: Booking, 4: Stuffing, 5: Cont, 6: Ship, 7: Dest, 8: Action
+            // 0: Select, 1: Mail, 2: EntryDate, 3: Loc, 4: Booking, 5: Stuffing, 6: Cont, 7: Ship, 8: Dest, 9: Action
             
             // Remove First (Select)
             headerRow.children[0].remove();
             
-            // After Select removal, indices shift left by 1.
-            // New 0: Mail. We want to remove Mail too? Usually yes for image share.
-            // Remove New First (Mail)
+            // Remove Mail (was 1, now 0)
             headerRow.children[0].remove();
+            
+            // Remove Entry Date (was 2, now 0) ?? Usually Entry Date is good to keep in image report?
+            // User requested share report image. Let's keep Entry Date in image as it is useful.
             
             // Remove Last (Action)
             headerRow.children[headerRow.children.length - 1].remove();
@@ -1350,7 +1334,8 @@ survey the containers urgently.`;
             // Body Rows
             clonedTable.querySelectorAll('tbody tr').forEach(row => {
                  row.children[0].remove(); // Select
-                 row.children[0].remove(); // Mail (became 0)
+                 row.children[0].remove(); // Mail
+                 // Keep Entry Date
                  row.children[row.children.length - 1].remove(); // Action
             });
             
