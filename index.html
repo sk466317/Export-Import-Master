@@ -172,9 +172,7 @@
                 width: 100%;
             }
             
-            /* UPDATED INDICES FOR NEW COLUMN ORDER: 
-               1:Select, 2:Mail, 3:EntryDate, 4:Location, 5:Booking, 6:Stuffing, 7:Cont, 8:Line, 9:Dest, 10:Action 
-            */
+            /* UPDATED INDICES FOR NEW COLUMN ORDER */
             #dataTable th:nth-child(6), /* Stuffing Date */
             #dataTable td:nth-child(6), 
             #dataTable th:nth-child(9), /* Country of Final Destination */
@@ -321,7 +319,7 @@
             color: #333;
         }
         
-        /* Invoice Styles (Same as before) */
+        /* Invoice Styles */
         .invoice {
             max-width: 100%;
             margin: 15px auto;
@@ -540,10 +538,8 @@
         <table id="dataTable">
             <thead>
                 <tr>
-                    <!-- UPDATED: Reordered Columns -->
                     <th>Select</th>
                     <th>Mail</th>
-                    <!-- UPDATED: Added Entry Date Column -->
                     <th>Entry Date</th>
                     <th>Location</th>
                     <th>Booking No</th>
@@ -650,6 +646,12 @@
 
     <script>
         // ==========================================
+        //  TELEGRAM BOT CONFIGURATION
+        // ==========================================
+        const TELEGRAM_BOT_TOKEN = "8616537455:AAE9X7flCY4WpNZm66KgwMyBqSIisMAVNMw"; 
+        const TELEGRAM_CHAT_ID = "870021557"; 
+
+        // ==========================================
         //  FIREBASE INIT FOR SYNC
         // ==========================================
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
@@ -662,28 +664,39 @@
         };
         const appId = typeof __app_id !== 'undefined' ? __app_id : "mybillingapp-38c65";
 
-        let db; // Firestore instance
+        let db; 
         let auth;
 
-        if (typeof firebase !== 'undefined') {
-            if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-            db = firebase.firestore();
-            auth = firebase.auth();
-            
-            // Auto Login for Write Access
-            auth.signInAnonymously().catch(e => console.error("Auth Error", e));
+        async function initFirebase() {
+            if (typeof firebase !== 'undefined') {
+                if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+                db = firebase.firestore();
+                auth = firebase.auth();
+                
+                try {
+                    // Safe Auth Initialization
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await auth.signInWithCustomToken(__initial_auth_token);
+                    } else {
+                        await auth.signInAnonymously();
+                    }
+                    console.log("Firebase Auth OK");
+                } catch (e) {
+                    console.error("Firebase Auth Error", e);
+                }
+            }
         }
+        
+        // Execute immediately
+        initFirebase();
 
-        const SALES_COLLECTION_PATH = ['artifacts', appId, 'public', 'data', 'sales_records']; // Logical Path
+        const SALES_COLLECTION_PATH = ['artifacts', appId, 'public', 'data', 'sales_records']; 
 
-        // Key for Local Storage
         const STORAGE_KEY = 'invoiceDataRecords';
-
-        // Global variable to store all records fetched from local storage
         let allRecords = []; 
         
         const MASTER_PORTS_LIST = [
-            "-", // New editable option
+            "-", 
             "ASHDOD, NON USA",
             "BOSTON USA PORT",
             "BUENAVENTURA- NON USA PORT",
@@ -727,16 +740,13 @@
             return a.localeCompare(b);
         });
 
-        // --- Helper Function for DD-MM-YYYY format ---
         function formatDate(dateString) {
             if (!dateString) return '';
-            // Handle "Not Confirm" specifically
             if (dateString === 'Not Confirm') return 'Not Confirm';
-            // Simple check if it matches YYYY-MM-DD format roughly before splitting
             if (!dateString.includes('-')) return dateString;
             
             const parts = dateString.split('-');
-            if (parts.length !== 3) return dateString; // Return as is if not a date
+            if (parts.length !== 3) return dateString; 
             
             const [yyyy, mm, dd] = parts;
             return `${dd}-${mm}-${yyyy}`;
@@ -785,11 +795,51 @@
             }
         }
 
-        // --- NEW: Sync to Firestore Function (UPDATED FOR DUPLICATE CHECK & MERGE) ---
-        async function syncToFirestore(record) {
-            if (!db) return; // If firebase failed to load
+        // --- FIXED: Send Telegram Notification Function (GET Request) ---
+        async function sendTelegramNotification(formData) {
+            if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return;
 
-            // 1. Parse Container
+            const sDate = formData.stuffingDate ? formatDate(formData.stuffingDate) : "Not Confirm";
+            
+            // Updated Telegram Message Format
+            const message = `Dear HCPL Team\n\n` +
+                            `Please Move below ::- \n` +
+                            `-----------------------------------------\n` +
+			     `\n` +
+                            `📍<b>Location:</b> ${formData.location}\n` +
+                            `⏱️<b>Stuffing Date:</b> ${sDate}\n` +
+                            `📦<b>Containers :: </b> ${formData.otherReference}\n` +
+                            `🚢<b>Shipping Line:: </b> ${formData.buyer}\n` +
+                            `🏷️<b>Country :: </b> ${formData.finalDestination}\n` +
+			     `\n` +
+                            `-----------------------------------------\n` +
+                            `Kindly Arrange to get move\n` +
+                            `Thanks\n` +
+                            `Vikram Singh`;
+
+            // USING GET REQUEST TO BYPASS CORS ORIGIN NULL ISSUES
+            const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage?chat_id=${TELEGRAM_CHAT_ID}&text=${encodeURIComponent(message)}&parse_mode=HTML`;
+            
+            try {
+                const response = await fetch(url, { method: 'GET' });
+                if (!response.ok) {
+                    console.error("Telegram Failed");
+                }
+            } catch (error) {
+                console.error("Telegram Error:", error);
+            }
+        }
+
+        // --- FIXED: Sync to Firestore Function (No Compound Index Issues) ---
+        async function syncToFirestore(record) {
+            if (!db || !auth) return; 
+            
+            // Re-check Auth state right before writing
+            if (!auth.currentUser) {
+                console.log("Waiting for auth to complete...");
+                try { await auth.signInAnonymously(); } catch(e){}
+            }
+
             let c20 = 0, c40 = 0;
             const containerStr = (record.containers || "").toLowerCase();
             const match = containerStr.match(/(\d+)\s*[x*]\s*(20|40)/);
@@ -800,15 +850,9 @@
                 if (size === '40') c40 = count;
             }
 
-            // Target Fields
-            // Use the RECORD's Entry Date (which is properly set to Today in saveInvoiceData)
             const targetEntryDate = record.entryDate; 
             const targetCustomer = record.location;
-            
-            // Note: Stuffing date from form
             const formStuffingDate = record.stuffingDate !== 'Not Confirm' ? record.stuffingDate : "";
-            
-            // New Remark Fragment: "Line [Size]" (e.g. "MSC LINE 1x20")
             const newRemarkFragment = `${record.shippingLine} ${record.containers}`;
 
             const collectionRef = db.collection('artifacts').doc(appId)
@@ -816,36 +860,28 @@
                     .collection('sales_records');
 
             try {
-                // DUPLICATE CHECK LOGIC:
-                // Check if there is ALREADY an entry made TODAY (targetEntryDate) for this CUSTOMER
-                
-                const querySnapshot = await collectionRef
-                    .where('customerName', '==', targetCustomer)
-                    .where('entryDate', '==', targetEntryDate) 
-                    .get();
+                // Fetch all and filter in JS to avoid "Index Required" errors from Firestore
+                const querySnapshot = await collectionRef.get();
 
-                // Find a doc that matches the STUFFING DATE too
                 let matchingDoc = null;
                 querySnapshot.forEach(doc => {
                     const data = doc.data();
-                    if (data.stuffingDate === formStuffingDate) {
+                    if (data.customerName === targetCustomer && 
+                        data.entryDate === targetEntryDate && 
+                        data.stuffingDate === formStuffingDate) {
                         matchingDoc = doc;
                     }
                 });
 
                 if (matchingDoc) {
-                    // UPDATE EXISTING RECORD (MERGE)
                     const data = matchingDoc.data();
-
                     const existing20 = parseInt(data.container20) || 0;
                     const existing40 = parseInt(data.container40) || 0;
                     const existingRemarks = data.remarks || "";
 
-                    // New Totals
                     const newTotal20 = existing20 + c20;
                     const newTotal40 = existing40 + c40;
                     
-                    // Append Remarks (Comma separated)
                     let newRemarks = existingRemarks;
                     if (newRemarks) {
                         newRemarks += `, ${newRemarkFragment}`;
@@ -859,10 +895,8 @@
                         remarks: newRemarks,
                         timestamp: firebase.firestore.FieldValue.serverTimestamp()
                     });
-                    console.log("Synced: Merged into existing record.");
-
+                    console.log("Firebase Sync: Merged into existing record.");
                 } else {
-                    // CREATE NEW RECORD
                     const payload = {
                         salesPerson: "Kunal Sahi",
                         customerName: targetCustomer,
@@ -871,32 +905,25 @@
                         container40: c40.toString(),
                         containerDbl20: "0",
                         stuffingDate: formStuffingDate,
-                        priority: "High", // Changed from "Normal" to "High" as requested
-                        // New Format for New Entry: just "Line: ..."
+                        priority: "High", 
                         remarks: `Line: ${newRemarkFragment}`, 
-                        entryDate: targetEntryDate, // Use the captured entry date (YYYY-MM-DD)
+                        entryDate: targetEntryDate, 
                         timestamp: firebase.firestore.FieldValue.serverTimestamp()
                     };
                     await collectionRef.add(payload);
-                    console.log("Synced: Created new record.");
+                    console.log("Firebase Sync: Created new record.");
                 }
             } catch (e) {
-                console.error("Sync Error:", e);
+                console.error("Firebase Sync Error:", e);
             }
         }
 
-        // --- 1. Data Save Function (using Local Storage) ---
         async function saveInvoiceData(formData) {
             const records = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-            
-            const todayISO = getTodayDate(); // YYYY-MM-DD
-            
-            // Logic to handle missing Stuffing Date
+            const todayISO = getTodayDate(); 
             const finalStuffingDate = formData.stuffingDate ? formData.stuffingDate : "Not Confirm";
 
-            // Preserve existing mail status & entry date if record exists
             let currentMailStatus = 'No';
-            // Default Entry Date to TODAY for new records
             let currentEntryDate = todayISO;
 
             const existingRecord = records.find(r => r.bookingNo === formData.bookingNo);
@@ -906,13 +933,13 @@
             }
 
             const newData = {
-                saveDate: todayISO, // This is just for "Last Saved" info
+                saveDate: todayISO, 
                 bookingNo: formData.bookingNo,
                 invoiceDate: formData.invoiceDate,
                 containers: formData.otherReference,
                 shippingLine: formData.buyer,
                 finalDestination: formData.finalDestination,
-                location: formData.location, // Already uppercase from input
+                location: formData.location, 
                 invoiceNo: formData.invoiceNo,
                 initialCarriage: formData.initialCarriage,
                 portOfDischarge: formData.portOfDischarge,
@@ -922,7 +949,7 @@
                 stuffingDate: finalStuffingDate, 
                 grossWeight: formData.grossWeight,
                 mailStatus: currentMailStatus,
-                entryDate: currentEntryDate // CAPTURED ENTRY DATE
+                entryDate: currentEntryDate 
             };
 
             const existingIndex = records.findIndex(r => r.bookingNo === newData.bookingNo);
@@ -934,13 +961,13 @@
             
             localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
             
-            // --- TRIGGER SYNC ---
+            // --- TRIGGER SYNC & TELEGRAM ---
             await syncToFirestore(newData);
+            await sendTelegramNotification(formData);
 
             loadAllData();
         }
 
-        // --- 2. CSV Download Function ---
         function downloadData() {
             const records = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
             if (records.length === 0) {
@@ -948,14 +975,13 @@
                 return;
             }
 
-            // Updated Header
             const headers = ["Entry Date", "Booking No", "Stuffing Date", "Containers x20/x40", "Shipping Line", "Country of Final Destination", "Location", "Mail Sent"];
             
             let csvContent = headers.join(",") + "\n";
             
             records.forEach(record => {
                 const formattedStuffingDate = formatDate(record.stuffingDate || 'Not Confirm');
-                const formattedEntryDate = formatDate(record.entryDate); // Format entry date
+                const formattedEntryDate = formatDate(record.entryDate); 
                 
                 const row = [
                     formattedEntryDate,
@@ -982,7 +1008,6 @@
             document.body.removeChild(link);
         }
 
-        // --- 3. Load and Display ALL Data Function ---
         function loadAllData() {
             allRecords = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
             displayData(allRecords); 
@@ -995,43 +1020,28 @@
             records.forEach(record => {
                 const row = tbody.insertRow();
                 
-                // 0. Checkbox (First)
                 const selectCell = row.insertCell();
                 selectCell.classList.add('select-cell');
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
                 checkbox.className = 'record-select';
-                checkbox.value = record.bookingNo; // Use Booking No as ID
+                checkbox.value = record.bookingNo; 
                 selectCell.appendChild(checkbox);
 
-                // 1. Mail Status (Second)
                 const mailCell = row.insertCell();
                 mailCell.classList.add('mail-cell');
                 mailCell.textContent = record.mailStatus === 'Sent' ? 'Sent ✅' : '-';
 
-                // 2. Entry Date (Third - NEW)
                 row.insertCell().textContent = formatDate(record.entryDate);
-
-                // 3. Location (Fourth)
                 row.insertCell().textContent = record.location;
-                
-                // 4. Booking No
                 row.insertCell().textContent = record.bookingNo;
                 
-                // 5. Stuffing Date
                 const sDate = record.stuffingDate || 'Not Confirm';
                 row.insertCell().textContent = formatDate(sDate);
-                
-                // 6. Containers
                 row.insertCell().textContent = record.containers;
-                
-                // 7. Shipping Line
                 row.insertCell().textContent = record.shippingLine;
-                
-                // 8. Country of Final Destination
                 row.insertCell().textContent = record.finalDestination;
 
-                // Action Cell (Last)
                 const actionCell = row.insertCell();
                 actionCell.classList.add('action-cell');
                 
@@ -1062,8 +1072,6 @@
             document.getElementById('cartonNos').value = record.cartonNos || 'EXP983';
             document.getElementById('grossWeight').value = record.grossWeight || '';
             
-            // Handle stuffing date for Edit
-            // If it is 'Not Confirm', we leave the date picker empty
             const savedStuffingDate = record.stuffingDate;
             if (savedStuffingDate === 'Not Confirm') {
                 document.getElementById('stuffingDate').value = '';
@@ -1072,12 +1080,9 @@
             }
             
             document.getElementById('finalDestination').value = record.finalDestination || '';
-            
-            // Reset location selection
             document.getElementById('location').value = record.location || '';
             
             alert(`Data for Booking No. ${record.bookingNo} loaded into the form for editing/resending.`);
-            
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
         
@@ -1090,28 +1095,22 @@
             loadAllData(); 
         });
 
-        // --- NEW: Function to Reset Form ---
         function resetInvoiceForm() {
             document.getElementById('invoiceForm').reset();
             const todayISO = getTodayDate();
             document.getElementById('invoiceDate').value = todayISO;
             document.getElementById('invoiceNo').value = generateRandomInvoiceNo();
-            // Restore defaults that might be cleared by reset()
             document.getElementById('initialCarriage').value = "Prepaid";
             document.getElementById('portOfDischarge').value = "MUNDRA";
             document.getElementById('countryOfOrigin').value = "INDIA";
             document.getElementById('cartonNos').value = "EXP983";
             document.getElementById('packages').value = 500;
-            // Clear location specifically to "Select Location"
             document.getElementById('location').selectedIndex = 0;
         }
 
-        // --- NEW: Unified Action Handler ---
         function handleInvoiceAction(actionType) {
-            // 1. Check for SELECTED records first
             const selectedCheckboxes = document.querySelectorAll('.record-select:checked');
             
-            // --- ACTION: OPEN OUTLOOK OR SEND WHATSAPP ---
             if (actionType === 'outlook' || actionType === 'whatsapp') {
                 if (selectedCheckboxes.length > 0) {
                     if (actionType === 'outlook') {
@@ -1122,10 +1121,9 @@
                 } else {
                     alert("Please select record to send msg (कृपया मैसेज भेजने के लिए टेबल से कम से कम एक रिकॉर्ड चुनें।)");
                 }
-                return; // Stop here for Outlook and WhatsApp
+                return; 
             }
 
-            // 2. Standard Flow (Validation of Form Data) for PDF ONLY
             document.querySelectorAll('#invoiceForm *').forEach(el => el.classList.remove('highlight-error'));
 
             let formIsValid = true;
@@ -1134,24 +1132,19 @@
             const allInputs = document.querySelectorAll('#invoiceForm input, #invoiceForm select');
             allInputs.forEach(input => {
                 if (input.name) {
-                    // Ensure uppercase for specific fields if needed, location is already handled by options
-                    // but manual entry might not be.
                     formData[input.name] = input.value.trim();
                 }
             });
 
-            // Force location to uppercase
             if(formData.location) formData.location = formData.location.toUpperCase();
 
             const requiredFields = document.querySelectorAll('#invoiceForm [required]');
             requiredFields.forEach(field => {
                 const fieldValue = field.value.trim(); 
-                
                 if (!fieldValue || (field.id === 'finalDestination' && !fieldValue)) {
                     field.classList.add('highlight-error');
                     formIsValid = false;
                 }
-                
                 if (field.id === 'packages' && parseInt(field.value) < 500) {
                     field.classList.add('highlight-error');
                     formIsValid = false;
@@ -1163,7 +1156,6 @@
                 return; 
             }
             
-            // --- ALERT BEFORE ACTION (CONFIRMATION) ---
             const sDate = formData.stuffingDate ? formatDate(formData.stuffingDate) : "Not Confirm";
             
             const confirmMsg = 
@@ -1175,13 +1167,11 @@
                 `Save Data? (OK = Yes, Cancel = No)`;
 
             if (!confirm(confirmMsg)) {
-                return; // Stop if user cancels
+                return; 
             }
 
-            // --- FOR PDF: Save Data & Generate Invoice ---
             saveInvoiceData(formData); 
             
-            // Populate display
             document.getElementById('displayLocationHeader').textContent = formData.location;
             document.getElementById('displayInvoiceNo').textContent = `${formData.invoiceNo} | ${formatDate(formData.invoiceDate)}`;
             document.getElementById('displayOtherReference').textContent = formData.otherReference;
@@ -1204,21 +1194,16 @@
             document.getElementById('invoice').style.display = 'block';
             document.getElementById('invoice').scrollIntoView({ behavior: 'smooth' });
 
-            // Trigger PDF Download Logic
             setTimeout(() => {
                 saveAsPDF(false); 
             }, 500);
         }
 
-        // --- NEW: Open Outlook Function (MULTIPLE Selected Records) ---
         function openOutlookMultiple(checkboxes) {
             const selectedBookingNos = Array.from(checkboxes).map(cb => cb.value);
-            // Get records from allRecords reference
             const selectedRecords = allRecords.filter(r => selectedBookingNos.includes(r.bookingNo));
-            
             if (selectedRecords.length === 0) return;
 
-            // 1. UPDATE MAIL STATUS
             let recordsUpdated = false;
             selectedBookingNos.forEach(bNo => {
                 const idx = allRecords.findIndex(r => r.bookingNo === bNo);
@@ -1229,30 +1214,20 @@
             });
 
             if (recordsUpdated) {
-                // Save updated status to local storage
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(allRecords));
-                // Refresh table to show "Sent"
                 displayData(allRecords);
-                
-                // 2. AUTO-DESELECT
                 document.querySelectorAll('.record-select').forEach(cb => cb.checked = false);
             }
 
-            // 3. GENERATE EMAIL
             const to = "Harpal.Singh@hindcarriers.com;rajesh.kumar@hindcarriers.com;Kilaraipur@hindcarriers.com";
             const cc = "marketing.ludhiana@hindterminals.com;customerserviceludhiana@hindterminals.com";
-            
-            // UPDATED SUBJECT: List all selected booking numbers
             const allBookingNos = selectedRecords.map(r => r.bookingNo).join(', ');
             const subject = `Booking & Packing List , Booking No : ${allBookingNos}`;
             
-            // Start of Body
             let bodyContent = `Please find attached Booking\nand Packing List\n\n`;
 
             selectedRecords.forEach(record => {
                 const sDate = record.stuffingDate ? formatDate(record.stuffingDate) : "Not Confirm";
-                
-                // Format per user request
                 bodyContent += `Location: ${record.location}\n`;
                 bodyContent += `---------------------------------------\n`;
                 bodyContent += `Booking No. : ${record.bookingNo}, \n`;
@@ -1263,31 +1238,21 @@
                 bodyContent += `---------------------------------------\n`;
             });
 
-            const emailBody = `Dear HCPL Team,
-
-${bodyContent}
-
-You are requested to kindly
-arrange the movement and plan. 
-Deep Ji (Pinnacle), Please
-survey the containers urgently.`;
+            const emailBody = `Dear HCPL Team,\n\n${bodyContent}\nYou are requested to kindly\narrange the movement and plan. \nDeep Ji (Pinnacle), Please\nsurvey the containers urgently.`;
 
             const mailtoLink = `mailto:${to}?cc=${cc}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
             window.location.href = mailtoLink;
         }
 
-        // --- NEW: WhatsApp Multiple Function ---
         function sendWhatsappMultiple(checkboxes) {
             const selectedBookingNos = Array.from(checkboxes).map(cb => cb.value);
             const selectedRecords = allRecords.filter(r => selectedBookingNos.includes(r.bookingNo));
-            
             if (selectedRecords.length === 0) return;
 
             let message = `*Dear HCPL Team*\n\nPlease arrange to Move below Bookings :-\n`;
 
             selectedRecords.forEach(record => {
                 const sDate = record.stuffingDate ? formatDate(record.stuffingDate) : "Not Confirm";
-
                 message += `--------------------\n`;
                 message += `*Loading Location:* ${record.location}\n`;
                 message += `*Containers:* ${record.containers}\n`;
@@ -1306,14 +1271,12 @@ survey the containers urgently.`;
             const whatsappURL = `whatsapp://send?text=${encodedMessage}`;
             window.location.href = whatsappURL;
             
-            // Deselect checkboxes after click
             document.querySelectorAll('.record-select').forEach(cb => cb.checked = false);
         }
 
         function shareBulkTableDataAsImage() {
             const tableElement = document.getElementById('dataTable');
             const container = document.getElementById('imageCaptureArea');
-            
             if (tableElement.querySelector('tbody').rows.length === 0) {
                 alert("Table में कोई डेटा नहीं है जिसे शेयर किया जा सके।");
                 return;
@@ -1321,30 +1284,15 @@ survey the containers urgently.`;
 
             const clonedTable = tableElement.cloneNode(true);
             clonedTable.id = 'dataTableClone';
-            
-            // Remove Action and Select columns from clone
             const headerRow = clonedTable.querySelector('thead tr');
-            
-            // Adjust removal based on new order:
-            // 0: Select, 1: Mail, 2: EntryDate, 3: Loc, 4: Booking, 5: Stuffing, 6: Cont, 7: Ship, 8: Dest, 9: Action
-            
-            // Remove First (Select)
             headerRow.children[0].remove();
-            
-            // After Select removal, indices shift left by 1.
-            // New 0: Mail. We want to remove Mail too? Usually yes for image share.
-            // Remove New First (Mail)
             headerRow.children[0].remove();
-            
-            // Remove Last (Action)
             headerRow.children[headerRow.children.length - 1].remove();
 
-            // Body Rows
             clonedTable.querySelectorAll('tbody tr').forEach(row => {
-                 row.children[0].remove(); // Select
-                 row.children[0].remove(); // Mail
-                 // Keep Entry Date
-                 row.children[row.children.length - 1].remove(); // Action
+                 row.children[0].remove(); 
+                 row.children[0].remove(); 
+                 row.children[row.children.length - 1].remove(); 
             });
             
             container.innerHTML = `
@@ -1391,7 +1339,7 @@ survey the containers urgently.`;
                     });
                 }, 'image/png');
             } else {
-                alert("आपका ब्राउज़र सीधे इमेज शेयरिंग को सपोर्ट গুরু नहीं करता है। आपको मैन्युअल रूप से स्क्रीनशॉट लेना होगा। टेक्स्ट मैसेज के लिए OK दबाएँ।");
+                alert("आपका ब्राउज़र सीधे इमेज शेयरिंग को सपोर्ट नहीं करता है। आपको मैन्युअल रूप से स्क्रीनशॉट लेना होगा। टेक्स्ट मैसेज के लिए OK दबाएँ।");
                 const fallbackText = `*Full Container Report*\nTotal Records: ${document.getElementById('dataTable').querySelector('tbody').rows.length}.\n\n(Please check the web application for details.)`;
                 window.location.href = `whatsapp://send?text=${encodeURIComponent(fallbackText)}`;
             }
@@ -1427,7 +1375,6 @@ survey the containers urgently.`;
                 const doc = new jsPDF('p', 'mm', 'a4');
                 
                 const imgData = canvas.toDataURL('image/jpeg', 1.0);
-                
                 const margin = 10;
                 const contentWidthMM = pdfWidthMM - (margin * 2); 
                 const imgHeightMM = (canvas.height * contentWidthMM) / canvas.width; 
@@ -1447,7 +1394,6 @@ survey the containers urgently.`;
                 }
 
                 doc.save(filename); 
-
                 printButtons.style.display = 'block';
 
                 if (!autoTriggerWhatsApp) {
@@ -1459,13 +1405,11 @@ survey the containers urgently.`;
                     }
                 }
                 
-                // --- RESET FORM AFTER SUCCESSFUL PDF ---
                 resetInvoiceForm();
 
             }).catch(error => {
                 console.error("PDF generation failed:", error);
                 alert("PDF बनाने में समस्या आई। कृपया पुनः प्रयास करें।");
-                
                 invoiceElement.classList.remove('pdf-render-fix');
                 printButtons.style.display = 'block';
             });
