@@ -172,10 +172,10 @@
                 width: 100%;
             }
             
-            /* UPDATED INDICES FOR NEW COLUMN ORDER */
-            #dataTable th:nth-child(6), /* Stuffing Date */
+            /* Hide less important columns on mobile */
+            #dataTable th:nth-child(6), 
             #dataTable td:nth-child(6), 
-            #dataTable th:nth-child(9), /* Country of Final Destination */
+            #dataTable th:nth-child(9), 
             #dataTable td:nth-child(9) { 
                 display: none;
             }
@@ -438,84 +438,111 @@
     <div class="form-container">
         <h2>Generate Invoice</h2>
         <form id="invoiceForm">
+            <!-- REARRANGED INPUT GROUP -->
             <div class="input-group">
                 
+                <!-- 1. Invoice No -->
                 <div class="input-item">
                     <label for="invoiceNo">Invoice No:</label>
                     <input type="text" id="invoiceNo" name="invoiceNo" required>
                 </div>
                 
+                <!-- 2. Invoice Date -->
                 <div class="input-item">
                     <label for="invoiceDate">Invoice Date:</label>
                     <input type="date" id="invoiceDate" name="invoiceDate" required>
                 </div>
 
-                <div class="input-item">
-                    <label for="otherReference">Containers x20/x40:</label>
-                    <input type="text" id="otherReference" name="otherReference" required>
-                </div>
-
-                <div class="input-item">
-                    <label for="buyer">Shipping Line:</label>
-                    <input type="text" id="buyer" name="buyer" required>
-                </div>
-
-                <div class="input-item">
-                    <label for="bookingNo">Booking No.:</label>
-                    <input type="text" id="bookingNo" name="bookingNo" required>
-                </div>
-
+                <!-- 3. Carriage -->
                 <div class="input-item">
                     <label for="initialCarriage">Carriage :</label>
                     <input type="text" id="initialCarriage" name="initialCarriage" value="Prepaid" required>
                 </div>
 
+                <!-- 4. Port of Loading -->
                 <div class="input-item">
                     <label for="portOfDischarge">Port of Loading:</label>
                     <input type="text" id="portOfDischarge" name="portOfDischarge" value="MUNDRA" required>
                 </div>
 
+                <!-- 5. Country of Origin -->
                 <div class="input-item">
                     <label for="countryOfOrigin">Country of Origin:</label>
                     <input type="text" id="countryOfOrigin" name="countryOfOrigin" value="INDIA" required>
                 </div>
 
+                <!-- 6. Packages -->
                 <div class="input-item">
                     <label for="packages">Packages:</label>
                     <input type="number" id="packages" name="packages" min="500" required>
                 </div>
 
+                <!-- 7. Carton Nos. -->
                 <div class="input-item">
                     <label for="cartonNos">Carton Nos.:</label>
                     <input type="text" id="cartonNos" name="cartonNos" value="EXP983" required>
                 </div>
 
+                <!-- 8. Booking No. -->
                 <div class="input-item">
-                    <label for="grossWeight">Gross Weight (KGS):</label>
-                    <input type="number" id="grossWeight" name="grossWeight" step="0.01" required>
+                    <label for="bookingNo">Booking No.:</label>
+                    <input type="text" id="bookingNo" name="bookingNo" required>
                 </div>
-                
+
+                <!-- 9. Containers x20/x40 -->
+                <div class="input-item">
+                    <label for="otherReference">Containers x20/x40:</label>
+                    <input type="text" id="otherReference" name="otherReference" required>
+                </div>
+
+                <!-- 10. Stuffing Date -->
                 <div class="input-item">
                     <label for="stuffingDate">Stuffing Date:</label>
                     <input type="date" id="stuffingDate" name="stuffingDate">
                 </div>
 
-            </div>
-            
-            <label for="finalDestination">Country of Final Destination:</label>
-            <input list="destinationPorts" id="finalDestination" name="finalDestination" type="text" required placeholder="Select or type port name">
-            
-            <datalist id="destinationPorts">
-            </datalist>
+                <!-- 11. Location -->
+                <div class="input-item">
+                    <label for="location">Location:</label>
+                    <select id="location" name="location" required style="text-transform: uppercase;">
+                        <option value="" disabled selected>SELECT LOCATION</option>
+                        <option value="TRIDENT DHAULA">TRIDENT DHAULA</option>
+                        <option value="TRIDENT SANGHERA">TRIDENT SANGHERA</option>
+                        <option value="TARGET STORE">TARGET STORE</option>
+                        <option value="TRIDENT LOTUS">TRIDENT LOTUS</option>
+                    </select>
+                </div>
 
-            <label for="location">Location:</label>
-            <select id="location" name="location" required style="text-transform: uppercase;">
-                <option value="" disabled selected>SELECT LOCATION</option>
-                <option value="TRIDENT DHAULA">TRIDENT DHAULA</option>
-                <option value="TRIDENT SANGHERA">TRIDENT SANGHERA</option>
-                <option value="TARGET STORE">TARGET STORE</option>
-                <option value="TRIDENT LOTUS">TRIDENT LOTUS</option>
-            </select>
+                <!-- 12. Booking Party (NEW LIST BOX - Default Blank with fixed width type) -->
+                <div class="input-item">
+                    <label for="bookingParty">Booking Party:</label>
+                    <input type="text" list="bookingParties" id="bookingParty" name="bookingParty" required placeholder="Select Booking Party">
+                    <datalist id="bookingParties">
+                        <option value="Target Store"></option>
+                    </datalist>
+                </div>
+
+                <!-- 13. Shipping Line (NOW AS A LIST BOX) -->
+                <div class="input-item">
+                    <label for="buyer">Shipping Line:</label>
+                    <input type="text" list="shippingLines" id="buyer" name="buyer" required placeholder="Select Shipping Line" style="text-transform: uppercase;">
+                    <datalist id="shippingLines"></datalist>
+                </div>
+
+                <!-- 14. Country of Final Destination -->
+                <div class="input-item">
+                    <label for="finalDestination">Country of Final Destination:</label>
+                    <input type="text" list="destinationPorts" id="finalDestination" name="finalDestination" required placeholder="Select or type port name">
+                    <datalist id="destinationPorts"></datalist>
+                </div>
+
+                <!-- 15. Gross Weight (KGS) -->
+                <div class="input-item">
+                    <label for="grossWeight">Gross Weight (KGS):</label>
+                    <input type="number" id="grossWeight" name="grossWeight" step="0.01" required>
+                </div>
+
+            </div>
         </form>
         
         <!-- Action Buttons -->
@@ -531,7 +558,7 @@
             <button id="deleteAllDataBtn" onclick="deleteAllData()">Delete All Data 🗑️</button>
             <button id="extraButton" style="background-color: #6c757d;">Extra Button</button>
         </div>
-        </div>
+    </div>
 
     <div id="dataTableContainer">
         <h2>All Saved Invoice Records</h2>
@@ -674,7 +701,6 @@
                 auth = firebase.auth();
                 
                 try {
-                    // Safe Auth Initialization
                     if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                         await auth.signInWithCustomToken(__initial_auth_token);
                     } else {
@@ -687,11 +713,9 @@
             }
         }
         
-        // Execute immediately
         initFirebase();
 
         const SALES_COLLECTION_PATH = ['artifacts', appId, 'public', 'data', 'sales_records']; 
-
         const STORAGE_KEY = 'invoiceDataRecords';
         let allRecords = []; 
         
@@ -740,6 +764,13 @@
             return a.localeCompare(b);
         });
 
+        const SHIPPING_LINES_LIST = [
+            "ANL", "APL", "BAY LINE", "BILANDER", "CMA", "COSCO", "EFFICIENT", 
+            "EVERGREEN", "GOODRICH", "HAPAG", "KMTC", "MAERSK", "MAXICON", "MSC", 
+            "OMEGA", "ONE", "OOCL", "PAREKH", "RCL", "SEABRIDGE", "STAR/ZIM", 
+            "TS LINE", "UNIFEEDER", "WINASIA", "WINWIN"
+        ];
+
         function formatDate(dateString) {
             if (!dateString) return '';
             if (dateString === 'Not Confirm') return 'Not Confirm';
@@ -765,23 +796,30 @@
         function populateDatalist() {
             const datalist = document.getElementById('destinationPorts');
             datalist.innerHTML = ''; 
-
             MASTER_PORTS_LIST.forEach(port => {
                 const option = document.createElement('option');
                 option.value = port;
                 datalist.appendChild(option);
             });
+
+            // Populate Shipping Lines List Box
+            const lineDatalist = document.getElementById('shippingLines');
+            if (lineDatalist) {
+                lineDatalist.innerHTML = '';
+                SHIPPING_LINES_LIST.forEach(line => {
+                    const option = document.createElement('option');
+                    option.value = line;
+                    lineDatalist.appendChild(option);
+                });
+            }
         }
         
         function deleteAllData() {
             const confirmation = confirm("WARNING: This will permanently delete ALL saved invoice data from your browser's local storage. Are you sure you want to proceed?");
-            
             if (confirmation) {
                 localStorage.removeItem(STORAGE_KEY);
                 alert("🗑️ All saved data has been successfully deleted.");
                 loadAllData();
-            } else {
-                alert("Deletion cancelled.");
             }
         }
 
@@ -795,28 +833,28 @@
             }
         }
 
-        // --- UPDATED: Send Telegram Notification Function (GET Request with New Format) ---
+        // --- Send Telegram Notification Function ---
         async function sendTelegramNotification(formData) {
             if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return;
 
             const sDate = formData.stuffingDate ? formatDate(formData.stuffingDate) : "Not Confirm";
             
-            // Updated Telegram Message Format with Booking No
             const message = `Dear HCPL Team\n\n` +
                             `Please Move below Booking,\n` +
-                            `\n` +
-							`🧾<b>Booking No.:</b> ${formData.bookingNo}\n` +
+                            `-----------------------------------------\n` +
                             `📍<b>Location:</b> ${formData.location}\n` +
                             `⏱️<b>Stuffing Date:</b> ${sDate}\n` +
+                            `-----------------------------------------\n` +
+                            `🧾<b>Booking No.:</b> ${formData.bookingNo}\n` +
+                            `🏢<b>Booking Party:</b> ${formData.bookingParty || 'Target Store'}\n` +
                             `📦<b>Containers :</b> ${formData.otherReference}\n` +
                             `🚢<b>Line:</b> ${formData.buyer}\n` +
                             `🏷️<b>Country :</b> ${formData.finalDestination}\n` +
-                            `\n` +
+                            `-----------------------------------------\n` +
                             `Kindly Arrange to get movement and plan\n` +
                             `Thanks\n` +
                             `Vikram Singh`;
 
-            // USING GET REQUEST TO BYPASS CORS ORIGIN NULL ISSUES
             const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage?chat_id=${TELEGRAM_CHAT_ID}&text=${encodeURIComponent(message)}&parse_mode=HTML`;
             
             try {
@@ -829,20 +867,18 @@
             }
         }
 
-        // --- UPDATED: Sync to Firestore Function (Multiple Containers & Custom Remarks) ---
+        // --- Sync to Firestore Function ---
         async function syncToFirestore(record) {
             if (!db || !auth) return; 
             
-            // Re-check Auth state right before writing
             if (!auth.currentUser) {
                 console.log("Waiting for auth to complete...");
                 try { await auth.signInAnonymously(); } catch(e){}
             }
 
-            // 1. Parse Multiple Containers (e.g. "1x20 2x40" -> c20=1, c40=2)
+            // Parse Multiple Containers
             let c20 = 0, c40 = 0;
             const containerStr = (record.containers || "").toLowerCase();
-            // Regex handles multiple matches globally 'g' flag
             const regex = /(\d+)\s*[xX*]\s*(20|40)/g;
             let match;
             while ((match = regex.exec(containerStr)) !== null) {
@@ -856,15 +892,13 @@
             const targetCustomer = record.location;
             const formStuffingDate = record.stuffingDate !== 'Not Confirm' ? record.stuffingDate : "";
             
-            // 2. UPDATED: Remarks me ab (Booking No, Line, Container) save hoga
-            const newRemarkFragment = `(${record.bookingNo},${record.shippingLine},${record.containers})`;
+            const newRemarkFragment = `(${record.bookingNo},${record.shippingLine},${(record.containers || '').toUpperCase()},${record.bookingParty || ''})`;
 
             const collectionRef = db.collection('artifacts').doc(appId)
                     .collection('public').doc('data')
                     .collection('sales_records');
 
             try {
-                // Fetch all and filter in JS to avoid "Index Required" errors from Firestore
                 const querySnapshot = await collectionRef.get();
 
                 let matchingDoc = null;
@@ -888,7 +922,6 @@
                     
                     let newRemarks = existingRemarks;
                     if (newRemarks) {
-                        // Prevent duplicate booking no logging in same record if clicked twice
                         if (!newRemarks.includes(record.bookingNo)) {
                             newRemarks += `, ${newRemarkFragment}`;
                         }
@@ -955,6 +988,7 @@
                 cartonNos: formData.cartonNos,
                 stuffingDate: finalStuffingDate, 
                 grossWeight: formData.grossWeight,
+                bookingParty: formData.bookingParty, 
                 mailStatus: currentMailStatus,
                 entryDate: currentEntryDate 
             };
@@ -968,7 +1002,6 @@
             
             localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
             
-            // --- TRIGGER SYNC & TELEGRAM ---
             await syncToFirestore(newData);
             await sendTelegramNotification(formData);
 
@@ -1078,6 +1111,7 @@
             document.getElementById('packages').value = record.packages || '';
             document.getElementById('cartonNos').value = record.cartonNos || 'EXP983';
             document.getElementById('grossWeight').value = record.grossWeight || '';
+            document.getElementById('bookingParty').value = record.bookingParty || '';
             
             const savedStuffingDate = record.stuffingDate;
             if (savedStuffingDate === 'Not Confirm') {
@@ -1100,6 +1134,38 @@
             document.getElementById('packages').value = 500; 
             populateDatalist(); 
             loadAllData(); 
+            
+            // AUTO-CALCULATE GROSS WEIGHT LOGIC
+            document.getElementById('otherReference').addEventListener('input', function(e) {
+                let containerStr = e.target.value.toLowerCase();
+                let c20 = 0, c40 = 0;
+                const regex = /(\d+)\s*[xX*]\s*(20|40)/g;
+                let match;
+                while ((match = regex.exec(containerStr)) !== null) {
+                    const count = parseInt(match[1], 10);
+                    const size = match[2];
+                    if (size === '20') c20 += count;
+                    if (size === '40') c40 += count;
+                }
+                // If any valid container format is matched, update weight
+                if (c20 > 0 || c40 > 0) {
+                    document.getElementById('grossWeight').value = (c20 * 3500) + (c40 * 7900);
+                }
+            });
+
+            // "ENTER" KEY NAVIGATION BEHAVIOR
+            document.getElementById('invoiceForm').addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    // Get all focusable elements inside the form
+                    const formElements = Array.from(this.elements).filter(el => !el.disabled && el.tabIndex !== -1);
+                    const index = formElements.indexOf(e.target);
+                    
+                    if (index > -1 && index < formElements.length - 1) {
+                        e.preventDefault(); // Prevent accidental form submission
+                        formElements[index + 1].focus(); // Move to the next input
+                    }
+                }
+            });
         });
 
         function resetInvoiceForm() {
@@ -1112,6 +1178,7 @@
             document.getElementById('countryOfOrigin').value = "INDIA";
             document.getElementById('cartonNos').value = "EXP983";
             document.getElementById('packages').value = 500;
+            document.getElementById('bookingParty').value = ""; // Default Blank
             document.getElementById('location').selectedIndex = 0;
         }
 
@@ -1144,6 +1211,7 @@
             });
 
             if(formData.location) formData.location = formData.location.toUpperCase();
+            if(formData.buyer) formData.buyer = formData.buyer.toUpperCase(); // Force uppercase for shipping line
 
             const requiredFields = document.querySelectorAll('#invoiceForm [required]');
             requiredFields.forEach(field => {
@@ -1238,6 +1306,7 @@
                 bodyContent += `Location: ${record.location}\n`;
                 bodyContent += `---------------------------------------\n`;
                 bodyContent += `Booking No. : ${record.bookingNo}, \n`;
+                bodyContent += `Booking Party: ${record.bookingParty || 'Target Store'}\n`;
                 bodyContent += `Containers  : ${record.containers}\n`;
                 bodyContent += `Shipping Line:  ${record.shippingLine}.\n`;
                 bodyContent += `Country of Final Destination: :\n${record.finalDestination}.\n`; 
@@ -1264,6 +1333,7 @@
                 message += `*Loading Location:* ${record.location}\n`;
                 message += `*Containers:* ${record.containers}\n`;
                 message += `*Booking No:* ${record.bookingNo}\n`;
+                message += `*Booking Party:* ${record.bookingParty || 'Target Store'}\n`;
                 message += `*Line:* ${record.shippingLine}\n`;
                 message += `*Final Destination:* ${record.finalDestination}\n`;
                 message += `------------------\n`;
